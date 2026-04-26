@@ -6,6 +6,8 @@ on:
   push:
     branches: [main, dev]
 
+permissions: 
+  contents: write
 jobs:
   # ── A. PR ONLY: SonarQube + Snyk validation ───────────────────────────────
   validate:
@@ -33,9 +35,11 @@ jobs:
 
   # ── C. PUSH ONLY: Push to DockerHub ──────────────────────────────────────
   push-image:
-    name: Push to DockerHub
-    needs: build
-    if: github.event_name == 'push'
+    needs: [build]
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      needs.build.result == 'success'
     uses: shopnovaorg/shopnovaorg-shared/.github/workflows/push.yaml@main
     with:
       image-name: abhinavbabu33/shopnova-auth-service
