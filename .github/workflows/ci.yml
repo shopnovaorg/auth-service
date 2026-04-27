@@ -21,9 +21,15 @@ jobs:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-  # ── B. ALL EVENTS: Build image (Trivy only on PR) ─────────────────────────
+  # ── B. Build image ─────────────────────────────────────────────────────────
+  # On PR  : runs AFTER validate passes (gate enforced)
+  # On push: validate is skipped → always() lets build proceed regardless
   build:
     name: Build Image
+    needs: [validate]
+    if: |
+      always() &&
+      (github.event_name == 'push' || needs.validate.result == 'success')
     uses: shopnovaorg/shopnovaorg-shared/.github/workflows/generate-tag-and-build-image-trivy.yaml@main
     with:
       image-name: abhinavbabu33/shopnova-auth-service
