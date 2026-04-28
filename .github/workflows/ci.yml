@@ -9,7 +9,7 @@ on:
 permissions: 
   contents: write
 jobs:
- 
+  # ── A. PR ONLY: SonarQube + Snyk validation ───────────────────────────────
   validate:
     name: Validate (Sonar + Snyk)
     if: github.event_name == 'pull_request'
@@ -21,6 +21,9 @@ jobs:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
+  # ── B. Build image ─────────────────────────────────────────────────────────
+  # On PR  : runs AFTER validate passes (gate enforced)
+  # On push: validate is skipped → always() lets build proceed regardless
   build:
     name: Build Image
     needs: [validate]
@@ -36,6 +39,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  # ── C. PUSH ONLY: Push to DockerHub ──────────────────────────────────────
   push-image:
     needs: [build]
     if: |
@@ -52,6 +56,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  # ── D. DEV PUSH ONLY: Update Helm values (dev branch) ────────────────────
   update-helm-dev:
     name: Update Helm Values (dev)
     needs: [build, push-image]
@@ -69,6 +74,7 @@ jobs:
     secrets:
       HELM_CHARTS_TOKEN: ${{ secrets.HELM_CHARTS_TOKEN }}
 
+  # ── E. MAIN PUSH ONLY: Manual prod approval gate ──────────────────────────
   prod-approval-gate:
     name: Prod Approval Gate
     needs: [build, push-image]
@@ -83,6 +89,7 @@ jobs:
       - name: Approved — proceeding to Helm prod update
         run: echo "✅ Approved for tag ${{ needs.build.outputs.image-tag }}"
 
+  # ── F. MAIN PUSH ONLY: Update Helm values (prod, main branch) ────────────
   update-helm-prod:
     name: Update Helm Values (prod)
     needs: [build, prod-approval-gate]
@@ -98,6 +105,7 @@ jobs:
     secrets:
       HELM_CHARTS_TOKEN: ${{ secrets.HELM_CHARTS_TOKEN }}
 
+  # ── G. ALWAYS: Notify on any failure ─────────────────────────────────────
   notify:
     name: Notify on Failure
     needs: [validate, build, push-image, update-helm-dev, prod-approval-gate, update-helm-prod]
